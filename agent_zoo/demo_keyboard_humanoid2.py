@@ -53,8 +53,17 @@ class PygletInteractiveWindow(pw.Window):
     def each_frame(self):
         self.theta += 0.05 * (self.keys.get(pwk.LEFT, 0) - self.keys.get(pwk.RIGHT, 0))
 
+
+def random_action(action_space):
+    a = action_space.sample()
+    if isinstance(a, np.ndarray):
+        a = a.astype(np.float32)
+    return a
+
+
 def demo_run():
     env = gym.make("RoboschoolHumanoidFlagrun-v1")
+    #env = gym.make("RoboschoolAnt-v1")
 
     config = tf.ConfigProto(
         inter_op_parallelism_threads=1,
@@ -72,18 +81,29 @@ def demo_run():
 
     obs = env.reset()
 
+    mycam = env.unwrapped.scene.cpp_world.new_camera_free_float(600, 400, "my_camera")
+
     while 1:
         a = pi.act(obs, env)
+        #a = random_action(env.action_space)
 
         x, y, z = eu.body_xyz
-        eu.walk_target_x = x + 1.1*np.cos(control_me.theta)   # 1.0 or less will trigger flag reposition by env itself
-        eu.walk_target_y = y + 1.1*np.sin(control_me.theta)
+        eu.walk_target_x = x + 2.0*np.cos(control_me.theta)   # 1.0 or less will trigger flag reposition by env itself
+        eu.walk_target_y = y + 2.0*np.sin(control_me.theta)
         eu.flag = eu.scene.cpp_world.debug_sphere(eu.walk_target_x, eu.walk_target_y, 0.2, 0.2, 0xFF8080)
         eu.flag_timeout = 100500
 
         obs, r, done, _ = env.step(a)
         img = env.render("rgb_array")
-        control_me.imshow(img)
+
+        cam_x = x + 0.2*np.cos(control_me.theta)
+        cam_y = y + 0.2*np.sin(control_me.theta)
+        mycam.move_and_look_at(cam_x, cam_y, z, eu.walk_target_x, eu.walk_target_y, z * 0.9)
+        rgb, depth, depth_mask, labeling, labeling_mask = mycam.render(False, False, False)
+        rgb_array = np.fromstring(rgb, dtype=np.uint8).reshape((400, 600, 3))
+        control_me.imshow(rgb_array)
+
+        #control_me.imshow(img)
         control_me.each_frame()
         if control_me.still_open==False: break
 
